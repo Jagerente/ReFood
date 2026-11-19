@@ -1,0 +1,176 @@
+local _, ns = ...
+
+local L = ns.L
+local C = ns.UI.COLORS
+local Market = ns.Market
+local Catalog = ns.Catalog
+local SidePanel = ns.SidePanel
+
+local AuctionPanel = {}
+ns.AuctionPanel = AuctionPanel
+
+local Money, ShortMoney = SidePanel.Money, SidePanel.ShortMoney
+local HOSTS = { "AuctionHouseFrame" }
+
+local panel
+
+local function ShownFood(entry)
+    if entry.offer then return entry.offer.food end
+    return entry.offers[1] and entry.offers[1].food
+end
+
+local function ShownItem(entry)
+    local food = ShownFood(entry)
+    return food and food.item
+end
+
+local function Detail(entry)
+    local status = entry.status
+    local offer = entry.offer
+    if status == Market.SEARCHING then return L.AH_SEARCHING, C.muted end
+    if status == Market.ENOUGH then return SidePanel.Stock(entry), C.muted end
+    if status == Market.NONE then return L.AH_NONE, C.bad end
+    if status == Market.POOR then return L.AH_POOR, C.bad end
+    if status == Market.BUYING then return L.AH_BUYING, C.accent end
+    if status == Market.CONFIRM then return L.AH_PRICE_UP, C.warn end
+    if status == Market.RAISED then
+        return string.format(L.AH_RAISED, Money(Market.SeenPrice(offer.item)), Money(offer.base)), C.warn
+    end
+    if offer.quantity < entry.need and offer.beyond then
+        return string.format(L.AH_CHEAP_ONLY, offer.quantity, Money(offer.beyond)), C.warn
+    end
+    if offer.quantity < entry.need then return string.format(L.AH_PARTIAL, offer.quantity), C.warn end
+    return SidePanel.Stock(entry), C.muted
+end
+
+local function LotSize(entry)
+    local offer = entry.offer
+    if not offer or offer.status ~= Market.READY then return entry.need end
+    if offer.kind == "item" and offer.auctions[1] then return offer.auctions[1].quantity end
+    return offer.quantity
+end
+
+local function ButtonText(entry, confirm)
+    if confirm then return L.AH_CONFIRM end
+    if entry.status == Market.ENOUGH then return L.AH_ENOUGH end
+    return string.format(L.AH_BUY, LotSize(entry))
+end
+
+local function OnSale(offer)
+    return offer ~= nil and offer.status == Market.READY
+end
+
+local function AddLine(text, color)
+    GameTooltip:AddLine(text, color[1], color[2], color[3], true)
+end
+
+local function ShowChoiceTooltip(choice)
+    local offer = choice.offer
+    GameTooltip:SetOwner(choice, "ANCHOR_RIGHT")
+    GameTooltip:SetItemByID(offer.item)
+    GameTooltip:AddLine(" ")
+    if not Market.IsSettled(offer) then
+        AddLine(L.AH_SEARCHING, C.muted)
+    elseif not OnSale(offer) then
+        AddLine(L.AH_NONE, C.bad)
+    else
+        AddLine(string.format(L.AH_PER_FOOD, Money(offer.unitCost)), C.text)
+        if offer.quantity > 0 then
+            AddLine(string.format(L.AH_TIP_AVAILABLE, offer.quantity), C.muted)
+            AddLine(string.format(L.AH_TIP_TOTAL, offer.quantity, Money(offer.cost)), C.muted)
+        else
+            AddLine(L.AH_TIP_ENOUGH, C.muted)
+        end
+        if offer.beyond then AddLine(string.format(L.AH_TIP_BEYOND, Money(offer.beyond)), C.warn) end
+        if offer.entry.offer ~= offer then AddLine(L.AH_TIP_PICK, C.accent) end
+    end
+    GameTooltip:Show()
+end
+
+local function ChoicePrice(offer)
+    if not Market.IsSettled(offer) then return "…", C.muted end
+    if offer.status ~= Market.READY then return L.AH_NONE_SHORT, C.muted end
+    return ShortMoney(offer.unitCost), Market.IsRaised(offer) and C.warn or C.text
+end
+
+local function PaintChoice(choice, offer, chosen)
+    local entry = offer.entry
+    local busy = entry.status == Market.BUYING or entry.status == Market.CONFIRM
+    local text, color = ChoicePrice(offer)
+    choice.price:SetText(text)
+    choice.price:SetTextColor(unpack(color))
+    local pending = not Market.IsSettled(offer)
+    choice:SetEnabled(OnSale(offer) and not busy)
+    choice:SetAlpha((OnSale(offer) or pending or chosen) and 1 or SidePanel.DISABLED_ALPHA)
+end
+
+local function CreateRow(owner)
+    local row = SidePanel.NewRow(owner, Market.Buy, ShownItem)
+    SidePanel.CreateChoices(row, Market.Pick, ShowChoiceTooltip)
+    return row
+end
+
+local function PaintRow(row, fresh)
+    local entry = row.entry
+    local food = ShownFood(entry)
+    row.icon:SetTexture(food and Catalog.Icon(food) or nil)
+    row.name:SetText(food and Catalog.Name(food) or Catalog.TypeName(entry.type))
+    local text, color = Detail(entry)
+    row.detail:SetText(text)
+    row.detail:SetTextColor(unpack(color))
+
+    local status = entry.status
+    local quoted = status == Market.CONFIRM
+    local confirm = quoted or status == Market.RAISED
+    local priced = status == Market.READY or status == Market.POOR or confirm
+    row.price:SetShown(priced)
+    if priced then row.price:SetText(Money(quoted and entry.quotedTotal or entry.offer.nextCost)) end
+    row.price:SetTextColor(unpack(confirm and C.warn or C.text))
+
+    row.button.text:SetText(ButtonText(entry, confirm))
+    row.button:SetStyle(confirm and "primary" or "default")
+    SidePanel.SetEnabled(row.button, status == Market.READY or confirm)
+    row:SetHeight(SidePanel.HEAD_HEIGHT + SidePanel.PaintChoices(row, fresh, PaintChoice))
+end
+
+local function Paint()
+    panel.subtitle:SetText(L.AH_SUBTITLE)
+    panel:PaintRows(Market.entries, CreateRow, PaintRow)
+    panel.footerText:SetText(string.format(L.AH_TOTAL, Money(Market.Total())))
+    panel.footerText:SetShown(#Market.entries > 0)
+end
+
+local function Create()
+    panel = SidePanel.Create("ReFoodAuctionPanel", {
+        title = "AH_TITLE",
+        empty = "AH_EMPTY",
+        refresh = Market.Refresh,
+        toggle = { key = "countBank", label = "COUNT_BANK", desc = "COUNT_BANK_DESC" },
+        hosts = HOSTS,
+        slot = "auction",
+        offset = { x = "auctionX", y = "auctionY" },
+        settingsPage = "auction",
+    })
+end
+
+function AuctionPanel.IsShown()
+    return panel ~= nil and panel:IsShown()
+end
+
+ns.Listen("MARKET_SHOWN", function(open)
+    if not open then
+        if panel then panel:Hide() end
+        return
+    end
+    if not panel then Create() end
+    Paint()
+    panel:Open()
+end)
+
+local function RepaintIfShown()
+    if panel and panel:IsShown() then Paint() end
+end
+
+ns.Listen("MARKET_CHANGED", RepaintIfShown)
+ns.Listen("LOCALE_CHANGED", RepaintIfShown)
+ns.Listen("NAMES_CHANGED", RepaintIfShown)

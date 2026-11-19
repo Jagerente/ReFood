@@ -1,0 +1,10 @@
+<Bindings>
+    <Binding name="CLICK ReFoodFoodButton:LeftButton" header="REFOOD" category="ADDONS">
+    </Binding>
+    <Binding name="CLICK ReFoodDrinkButton:LeftButton" category="ADDONS">
+    </Binding>
+    <Binding name="CLICK ReFoodRestButton:LeftButton" category="ADDONS">
+    </Binding>
+    <Binding name="CLICK ReFoodBuffButton:LeftButton" category="ADDONS">
+    </Binding>
+</Bindings>
