@@ -145,7 +145,7 @@ local function Create()
         title = "AH_TITLE",
         empty = "AH_EMPTY",
         refresh = Market.Refresh,
-        toggle = { key = "countBank", label = "COUNT_BANK", desc = "COUNT_BANK_DESC" },
+        toggles = { { key = "countBank", label = "COUNT_BANK", desc = "COUNT_BANK_DESC" } },
         hosts = HOSTS,
         slot = "auction",
         offset = { x = "auctionX", y = "auctionY" },

@@ -44,7 +44,7 @@ The macros are made per character when you first drag them. If all 30 character 
 
 ## Vendor
 
-When you talk to a vendor who sells food or drinks, a panel next to the window lists what you are short of, up to the stock you keep (20 food and 20 drinks by default, adjustable). Food in the bank counts toward it; switch off "Count food in the bank" on the Vendor tab to buy the full stock for your bags.
+When you talk to a vendor who sells food or drinks, a panel next to the window lists what you are short of, up to the stock you keep (20 food and 20 drinks by default, adjustable). Food in the bank counts toward it; switch off "Count food in the bank" on the panel or on the Vendor tab to buy the full stock for your bags.
 
 ![The vendor panel next to an innkeeper with bread and juice to buy and the rest of its food and drinks under each row](https://raw.githubusercontent.com/Jagerente/ReFood/main/branding/screenshots/vendor.png)
 

@@ -98,7 +98,10 @@ local function Create()
         empty = "VENDOR_EMPTY",
         onAction = function() Merchant.BuyAll() end,
         actionHint = "VENDOR_BUY_ALL_DESC",
-        toggle = { key = "merchantAuto", label = "VENDOR_AUTO", desc = "VENDOR_AUTO_DESC" },
+        toggles = {
+            { key = "merchantAuto", label = "VENDOR_AUTO", desc = "VENDOR_AUTO_DESC" },
+            { key = "countBank", label = "COUNT_BANK", desc = "COUNT_BANK_DESC" },
+        },
         hosts = HOSTS,
         slot = "merchant",
         offset = { x = "merchantX", y = "merchantY" },
