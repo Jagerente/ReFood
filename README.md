@@ -54,7 +54,7 @@ When you talk to a vendor who sells food or drinks, a panel next to the window l
 
 ## Auction house
 
-The auction house panel is for cooked food: plain food other players cook and the food with your Well Fed buff. It lists what you are short of with the cheapest price.
+The auction house panel is for cooked food: plain food other players cook and the food with your Well Fed buff. It lists what you are short of with the cheapest price. The panel asks for prices only when you press **Find prices**, so opening the auction house to sell things doesn't slow it down.
 
 - The strongest food on sale is chosen by default, the rest is listed under the row with its price; click one to buy it instead.
 - **Price jump guard.** A purchase takes only food priced at most 20% (adjustable) above the cheapest one. If 4 cost 15s and the fifth costs 1g, the panel buys 4 and tells you the rest is dearer.
