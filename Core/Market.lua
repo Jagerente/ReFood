@@ -2,7 +2,7 @@ local _, ns = ...
 
 local Inventory = ns.Inventory
 
-local Market = { open = false, priced = false, entries = {} }
+local Market = { open = false, entries = {} }
 ns.Market = Market
 
 Market.IDLE = "idle"
@@ -27,6 +27,8 @@ local byItem = {}
 local shopping = {}
 local keep = {}
 local seen = {}
+local asked = {}
+local askedAll = false
 local buying
 local purchaseTimer
 local windowOpen = false
@@ -51,17 +53,17 @@ function Market.IsSettled(offer)
     return offer.status ~= Market.QUEUED and offer.status ~= Market.SEARCHING
 end
 
-local function Available(offer)
+function Market.IsAvailable(offer)
     return offer.status == Market.READY or offer.status == Market.IDLE or not Market.IsSettled(offer)
 end
 
 local function ChosenOffer(entry)
     local item = ns.charDB.buyPicks[entry.type.key]
     for _, offer in ipairs(entry.offers) do
-        if offer.item == item and Available(offer) then return offer end
+        if offer.item == item and Market.IsAvailable(offer) then return offer end
     end
     for _, offer in ipairs(entry.offers) do
-        if Available(offer) then return offer end
+        if Market.IsAvailable(offer) then return offer end
     end
 end
 
@@ -127,7 +129,7 @@ end
 
 local function Research(entry)
     for _, offer in ipairs(entry.offers) do
-        if Market.priced then
+        if entry.priced then
             Enqueue(offer)
         else
             offer.status = Market.IDLE
@@ -293,7 +295,7 @@ local function Rebuild()
         local key = wanted.type.key
         local entry = byType[key]
         if not entry then
-            entry = { type = wanted.type, offers = {} }
+            entry = { type = wanted.type, offers = {}, priced = askedAll or asked[key] }
             byType[key] = entry
         end
         Sync(entry, wanted)
@@ -312,23 +314,44 @@ end
 
 function Market.Refresh()
     for _, entry in ipairs(entries) do
-        if not Market.Busy(entry) then Research(entry) end
+        if entry.priced and not Market.Busy(entry) then Research(entry) end
     end
     Changed()
     ns.AuctionQueue:Pump()
 end
 
-function Market.FindPrices()
-    Market.priced = true
-    Market.Refresh()
+local function RequestPrices(entry)
+    if entry.priced or Market.Busy(entry) then return end
+    asked[entry.type.key] = true
+    entry.priced = true
+    Research(entry)
+end
+
+function Market.FindPrices(entry)
+    if entry then
+        RequestPrices(entry)
+    else
+        askedAll = true
+        for _, each in ipairs(entries) do RequestPrices(each) end
+    end
+    Changed()
+    ns.AuctionQueue:Pump()
+end
+
+function Market.PriceCounts()
+    local waiting, known = 0, 0
+    for _, entry in ipairs(entries) do
+        if entry.priced then known = known + 1 else waiting = waiting + 1 end
+    end
+    return waiting, known
 end
 
 function Market.Pick(entry, food)
     local offer = byItem[food.item]
-    if Market.Busy(entry) or not offer or offer.status ~= Market.READY then return end
+    if Market.Busy(entry) or not offer or not Market.IsAvailable(offer) then return end
     Inventory.SetPick(entry.type, food, entry.offers[1].food)
     Settle(entry)
-    Changed()
+    Market.FindPrices(entry)
 end
 
 local function FinishCooling(entry)
@@ -449,7 +472,8 @@ local function Reset()
     CancelTimer(purchaseTimer)
     if buying and buying.offer.kind == COMMODITY then C_AuctionHouse.CancelCommoditiesPurchase() end
     buying = nil
-    Market.priced = false
+    askedAll = false
+    wipe(asked)
     wipe(entries)
     wipe(byType)
     wipe(byItem)
