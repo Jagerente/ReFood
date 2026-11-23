@@ -25,8 +25,7 @@ local function Detail(entry)
     local status = entry.status
     local offer = entry.offer
     if status == Market.SEARCHING then return L.AH_SEARCHING, C.muted end
-    if status == Market.IDLE then return SidePanel.Stock(entry), C.muted end
-    if status == Market.ENOUGH then return SidePanel.Stock(entry), C.muted end
+    if status == Market.IDLE or status == Market.ENOUGH then return SidePanel.Stock(entry), C.muted end
     if status == Market.NONE then return L.AH_NONE, C.bad end
     if status == Market.POOR then return L.AH_POOR, C.bad end
     if status == Market.BUYING then return L.AH_BUYING, C.accent end
@@ -74,7 +73,6 @@ local function ShowChoiceTooltip(choice)
     else
         AddLine(string.format(L.AH_PER_FOOD, Money(offer.unitCost)), C.text)
         if offer.quantity > 0 then
-            AddLine(string.format(L.AH_TIP_AVAILABLE, offer.quantity), C.muted)
             AddLine(string.format(L.AH_TIP_TOTAL, offer.quantity, Money(offer.cost)), C.muted)
         else
             AddLine(L.AH_TIP_ENOUGH, C.muted)
@@ -93,7 +91,7 @@ end
 
 local function PaintChoice(choice, offer, chosen)
     local entry = offer.entry
-    local busy = entry.status == Market.BUYING or entry.status == Market.CONFIRM
+    local busy = Market.Busy(entry)
     local text, color = ChoicePrice(offer)
     choice.price:SetText(text)
     choice.price:SetTextColor(unpack(color))

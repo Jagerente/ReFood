@@ -212,10 +212,6 @@ function PanelMixin:Offset()
     return ns.db[offset.x], ns.db[offset.y]
 end
 
-function PanelMixin:Dock()
-    ns.Dock:Layout()
-end
-
 function PanelMixin:Layer()
     local host = ns.Dock:Host(self)
     if not host then
@@ -232,7 +228,7 @@ function PanelMixin:Open()
     end
     self:Layer()
     UI.FadeIn(self, FADE_TIME)
-    self:Dock()
+    ns.Dock:Layout()
 end
 
 function PanelMixin:ListTop()
@@ -254,7 +250,6 @@ function PanelMixin:PaintRows(entries, create, paint)
         paint(row, fresh)
         row:ClearAllPoints()
         row:SetPoint("TOPLEFT", 0, -y)
-        row.divider:SetShown(index > 1)
         y = y + row:GetHeight() + ROW_GAP
         if fresh then FadeInRow(row) end
         row:Show()
@@ -298,7 +293,7 @@ function PanelMixin:EndDrag()
         ns.Set(self.offset.y, y + Round(self:GetTop() - self.dragTop))
     end
     self.dragLeft, self.dragTop = nil, nil
-    self:Dock()
+    ns.Dock:Layout()
 end
 
 local function MakeMovable(panel, opts)
@@ -313,7 +308,7 @@ local function MakeMovable(panel, opts)
         offset = function() return panel:Offset() end,
     })
     ns.Listen("SETTING_CHANGED", function(key)
-        if panel:IsShown() and (key == nil or key == offset.x or key == offset.y) then panel:Dock() end
+        if panel:IsShown() and (key == nil or key == offset.x or key == offset.y) then ns.Dock:Layout() end
     end)
 end
 
@@ -380,10 +375,6 @@ function SidePanel.NewRow(panel, onButton, tooltipItem)
     row.tooltipItem = tooltipItem
     row.fade = {}
 
-    row.divider = Hairline(row)
-    row.divider:SetPoint("TOPLEFT", 0, ROW_GAP / 2)
-    row.divider:SetPoint("TOPRIGHT", 0, ROW_GAP / 2)
-
     local head = CreateFrame("Frame", nil, row)
     head:SetPoint("TOPLEFT")
     head:SetPoint("TOPRIGHT")
@@ -423,6 +414,7 @@ end
 local function CreateChoice(row, index)
     local choice = CreateFrame("Button", nil, row.choices)
     choice:SetHeight(CHOICE_HEIGHT)
+    choice:SetMotionScriptsWhileDisabled(true)
     choice:SetPoint("LEFT")
     choice:SetPoint("RIGHT")
     local hover = choice:CreateTexture(nil, "BACKGROUND")

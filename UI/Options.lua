@@ -340,7 +340,7 @@ end
 local function StockHint(foodType)
     return function()
         local grade = Inventory.StockFood(foodType)
-        return grade and string.format(L["STOCK_COUNTS_" .. foodType.key], Catalog.Name(grade))
+        return grade and string.format(L["TIP_STOCK_FROM_" .. foodType.key], Catalog.Name(grade))
     end
 end
 

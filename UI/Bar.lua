@@ -338,6 +338,7 @@ end
 local function StartMoving()
     if ns.db.locked or InCombatLockdown() then return false end
     moving = true
+    GameTooltip:Hide()
     holder:Raise()
     holder:StartMoving()
 end
@@ -357,7 +358,6 @@ end
 
 local function StartAltMoving()
     if not IsAltKeyDown() then return false end
-    GameTooltip:Hide()
     return StartMoving()
 end
 
@@ -468,6 +468,11 @@ local function CreateButton(key)
     return button
 end
 
+local function HeaderHint()
+    if ns.db.locked then return "HEADER_LOCKED_DESC" end
+    return InCombatLockdown() and "HEADER_COMBAT_DESC" or "HEADER_DESC"
+end
+
 local function CreateHeader()
     header = CreateFrame("Frame", nil, bar)
     header:SetHeight(HEADER_HEIGHT)
@@ -478,15 +483,10 @@ local function CreateHeader()
     glyph:SetPoint("LEFT")
     title = UI.BoldText(header, T.label, C.text)
     title:SetPoint("LEFT", glyph, "RIGHT", HEADER_GLYPH_GAP, 0)
-    header:SetScript("OnEnter", function(self)
-        W.ShowHint(self, ns.db.locked and "HEADER_LOCKED_DESC" or "HEADER_DESC")
-    end)
+    header:SetScript("OnEnter", function(self) W.ShowHint(self, HeaderHint()) end)
     header:SetScript("OnLeave", W.HideHint)
     header:SetScript("OnMouseUp", OnPanelMouseUp)
-    W.DragHandle(header, function()
-        if ns.db.locked or InCombatLockdown() then return false end
-        StartMoving()
-    end, StopMoving)
+    W.DragHandle(header, StartMoving, StopMoving)
 end
 
 local function HeaderWidth()
@@ -530,7 +530,10 @@ local function PlaceHolder()
 end
 
 local function WantsRest()
-    return ns.db.restButton and Catalog.IsActive(Catalog.byKey.food) and Catalog.IsActive(Catalog.byKey.drink)
+    if not ns.db.restButton or not Catalog.IsActive(Catalog.byKey.food) or not Catalog.IsActive(Catalog.byKey.drink) then
+        return false
+    end
+    return Picker.records.rest.active.main ~= nil or ns.TestMode.active or ns.db.showEmpty
 end
 
 local function WantsButton(key)
