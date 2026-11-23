@@ -32,7 +32,7 @@ local function ShowChoiceTooltip(choice)
     GameTooltip:SetOwner(choice, "ANCHOR_RIGHT")
     GameTooltip:SetItemByID(offer.item)
     GameTooltip:AddLine(" ")
-    AddLine(string.format(L.AH_PER_FOOD, Money(offer.unitPrice)), C.text)
+    AddLine(string.format(L.AH_PER_ITEM, Money(offer.unitPrice)), C.text)
     if offer.need > 0 then
         AddLine(string.format(L.AH_TIP_TOTAL, offer.quantity, Money(offer.cost)), C.muted)
     else
@@ -90,7 +90,7 @@ local function Create()
         empty = "VENDOR_EMPTY",
         onAction = function() Merchant.BuyAll() end,
         toggles = {
-            { key = "merchantAuto", label = "VENDOR_AUTO", desc = "VENDOR_AUTO_DESC" },
+            { key = "merchantAuto", label = "VENDOR_AUTO" },
             { key = "countBank", label = "COUNT_BANK", desc = "COUNT_BANK_DESC" },
         },
         hosts = HOSTS,

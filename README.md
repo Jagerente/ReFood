@@ -50,41 +50,41 @@ When you talk to a vendor who sells food or drinks, a panel next to the window l
 
 - The strongest food the vendor sells for your level is chosen. Innkeepers sell several drinks: under the row each one is listed with how much it restores and its price; click another one to buy it instead. Your pick is remembered, and the stock then counts that food and stronger ones.
 - Food that restores less than 20% of your max health or mana (adjustable) isn't offered. A level 60 warrior with 4000 health sees Homemade Cherry Pie, not Mutton Chop.
-- **Buy all** buys every row, one stack at a time. If you can't pay for all of it, the row says how many you can pay for. Turn on "Buy right away" to skip the click.
+- **Buy all** buys every row, one stack at a time. If you can't pay for all of it, the row says how many you can pay for. Turn on "Buy when the vendor window opens" to skip the click.
 
 ## Auction house
 
-The auction house panel is for cooked food: plain food other players cook and the food with your Well Fed buff. It lists what you are short of with the cheapest price. The panel asks for prices only when you press **Find prices**, so opening the auction house to sell things doesn't slow it down.
+The auction house panel is for cooked food: plain food other players cook and the food with your Well Fed buff. It lists what you are short of. The panel asks for prices only when you press **Find prices**, so opening the auction house to sell things doesn't slow it down.
 
 - The strongest food on sale is chosen by default, the rest is listed under the row with its price; click one to buy it instead.
-- **Price jump guard.** A purchase takes only food priced at most 20% (adjustable) above the cheapest one. If 4 cost 15s and the fifth costs 1g, the panel buys 4 and tells you the rest is dearer.
+- The **Price jump guard** takes only food priced at most 20% (adjustable) above the cheapest one. If 4 cost 15s and the fifth costs 1g, the panel buys 4 and tells you the rest is dearer.
 - Purchases from the auction house arrive by mail and count toward the stock while they wait in the mailbox.
 
 ![The restock panel next to the auction house with the cooked food to pick from under each row](https://raw.githubusercontent.com/Jagerente/ReFood/main/branding/screenshots/auction.png)
 
 ## Bank
 
-When you open the bank, a panel next to it lists the food your bags are short of. **Take all** moves the food the stock counts into your bags, the strongest first, splitting stacks so you get exactly the stock. Turn on "Take it right away" to skip the click.
+When you open the bank, a panel next to it lists the food your bags are short of. **Take all** moves the food the stock counts into your bags, the strongest first, splitting stacks so you get exactly the stock. Turn on "Take when the bank opens" to skip the click.
 
 ![The bank panel next to the EllesmereUI bank window with the steaks to take into your bags](https://raw.githubusercontent.com/Jagerente/ReFood/main/branding/screenshots/bank.png)
 
-All three panels sit to the right of their window and follow it, also when a bag addon replaces the bank window. They share the space with the panels of ReScroll and RePotion. On the Vendor, Auction and Bank tabs you can attach the panel to the window or to another addon's panel, to the right, left, below or above. Drag a panel to move it; right-click it to open its settings, middle-click to put it back.
+All three panels sit to the right of their window and follow it, also when a bag addon replaces the bank window. They share the space with the panels of the other Re addons. On the Vendor, Auction and Bank tabs you can attach the panel to the window or to another addon's panel, to the right, left, below or above. Drag a panel to move it; right-click it to open or close its settings, middle-click to put it back.
 
 ## Settings
 
 `/food` (or `/refood`) opens the settings:
 
-- **Food:** which buttons to show on this character, their keys, **Skip weaker than**, how much to keep, mage food first, the Well Fed buff and its reminder, the macros
-- **Panel:** when it shows up, food you are out of, icon size, spacing, row or column, the title line, the count, lock, the background of the panel and of the vendor, auction and bank panels, minimap button, language
-- **Vendor:** the vendor list, buying right away, counting the bank, where the panel sits
-- **Auction:** the auction house list, the price jump guard, where the panel sits
-- **Bank:** the bank panel, taking food right away, where the panel sits
+- The Food tab has the buttons to show on this character, their keys and macros, how much to keep, **Skip weaker than**, mage food first, and the Well Fed buff with its reminder.
+- The Panel tab sets when the panel shows up, food you are out of, icon size, spacing, row or column, the title line, the count, the lock, the background of the panels, the minimap button and the language.
+- The Vendor tab turns the vendor list on or off and sets buying when the vendor window opens, counting the bank and where the panel sits.
+- The Auction tab turns the auction house list on or off and sets counting the bank, the price jump guard and where the panel sits.
+- The Bank tab turns the bank panel on or off and sets taking food when the bank opens and where the panel sits.
 
 ## Other Re addons
 
-Panels like this one for the other things you carry, with the same restock at the auction house and the bank:
+Panels like this one for the other things you carry:
 
-- [ReScroll](https://www.curseforge.com/projects/1812247) shows which scroll buffs you are missing, applies them with one button and restocks scrolls ([GitHub](https://github.com/Jagerente/ReScroll)).
-- [RePotion](https://www.curseforge.com/projects/1815534) gives you one button for health potions and one for mana potions, and restocks them ([GitHub](https://github.com/Jagerente/RePotion)).
-- [ReReagent](https://www.curseforge.com/projects/1816458) counts the reagents your class spells use and restocks them at the vendor and from the bank ([GitHub](https://github.com/Jagerente/ReReagent)).
-- [ReWeapon](https://www.curseforge.com/projects/1816469) puts sharpening stones, oils and poisons on your weapons with one button per hand and restocks them ([GitHub](https://github.com/Jagerente/ReWeapon)).
+- [ReScroll](https://www.curseforge.com/projects/1812247) shows which scroll buffs you are missing, applies them with one button and restocks scrolls at the auction house and the bank ([GitHub](https://github.com/Jagerente/ReScroll)).
+- [RePotion](https://www.curseforge.com/projects/1815534) gives you one button per potion type (health, mana, Free Action) and restocks them at the auction house and the bank ([GitHub](https://github.com/Jagerente/RePotion)).
+- [ReReagent](https://www.curseforge.com/projects/1816458) counts the reagents your class spells use and restocks them at the vendor and the bank ([GitHub](https://github.com/Jagerente/ReReagent)).
+- [ReWeapon](https://www.curseforge.com/projects/1816469) puts sharpening stones, oils and poisons on your weapons with one button per hand and restocks them at the vendor, the auction house and the bank ([GitHub](https://github.com/Jagerente/ReWeapon)).

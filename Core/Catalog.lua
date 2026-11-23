@@ -208,7 +208,7 @@ function Catalog.AboveFloor(entry, floor)
 end
 
 function Catalog.Name(entry)
-    return C_Item.GetItemNameByID(entry.item) or string.format(ns.L.FOOD_LOADING, entry.item)
+    return C_Item.GetItemNameByID(entry.item) or string.format(ns.L.ITEM_LOADING, entry.item)
 end
 
 function Catalog.Icon(entry)
