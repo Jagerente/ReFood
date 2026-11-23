@@ -45,11 +45,10 @@ local COINS = {
     { size = 1, key = "COIN_COPPER", color = "|cffd4895a" },
 }
 
-SidePanel.ROW_WIDTH = WIDTH - PAD * 2
-SidePanel.TEXT_INDENT = ICON_SIZE + 10
+local ROW_WIDTH = WIDTH - PAD * 2
+local TEXT_INDENT = ICON_SIZE + 10
 SidePanel.HEAD_HEIGHT = HEAD_HEIGHT
 SidePanel.DISABLED_ALPHA = DISABLED_ALPHA
-SidePanel.HAIRLINE = HAIRLINE
 
 local function Coin(amount, coin)
     return amount .. coin.color .. L[coin.key] .. "|r"
@@ -82,6 +81,10 @@ end
 function SidePanel.SetEnabled(button, enabled)
     button:SetEnabled(enabled)
     button:SetAlpha(enabled and 1 or DISABLED_ALPHA)
+end
+
+function SidePanel.AddLine(text, color)
+    GameTooltip:AddLine(text, color[1], color[2], color[3], true)
 end
 
 local backgrounds = {}
@@ -152,14 +155,14 @@ local function CreateHeader(panel, opts)
 
     panel.subtitle = UI.Text(panel, T.label, C.muted)
     panel.subtitle:SetPoint("TOPLEFT", PAD, -PAD - HEADER_HEIGHT)
-    panel.subtitle:SetWidth(SidePanel.ROW_WIDTH)
+    panel.subtitle:SetWidth(ROW_WIDTH)
     panel.subtitle:SetWordWrap(true)
     panel.subtitle:SetJustifyH("LEFT")
 end
 
 local function CreateToggle(panel, toggle, index)
     local key = toggle.key
-    local row = W.Toggle(panel, SidePanel.ROW_WIDTH, {
+    local row = W.Toggle(panel, ROW_WIDTH, {
         label = toggle.label,
         desc = toggle.desc,
         get = function() return ns.db[key] end,
@@ -179,8 +182,6 @@ local function CreateFooter(panel, opts)
     if opts.onAction then
         panel.action = W.Button(panel, nil, opts.onAction, "primary")
         panel.action:SetPoint("BOTTOMRIGHT", -PAD, PAD)
-        panel.action:HookScript("OnEnter", function(self) W.ShowHint(self, opts.actionHint) end)
-        panel.action:HookScript("OnLeave", W.HideHint)
     end
     panel.footerText = UI.Text(panel, T.body, C.text)
     panel.footerText:SetPoint("LEFT", panel, "BOTTOMLEFT", PAD, PAD + BUTTON_HEIGHT / 2)
@@ -188,10 +189,10 @@ end
 
 local function CreateList(panel, opts)
     panel.list = CreateFrame("Frame", nil, panel)
-    panel.list:SetWidth(SidePanel.ROW_WIDTH)
+    panel.list:SetWidth(ROW_WIDTH)
     panel.emptyText = UI.Text(panel.list, T.body, C.muted)
     panel.emptyText:SetPoint("TOPLEFT")
-    panel.emptyText:SetWidth(SidePanel.ROW_WIDTH)
+    panel.emptyText:SetWidth(ROW_WIDTH)
     panel.emptyText:SetWordWrap(true)
     panel.emptyText:SetJustifyH("LEFT")
     panel.emptyText:SetSpacing(3)
@@ -375,7 +376,7 @@ end
 
 function SidePanel.NewRow(panel, onButton, tooltipItem)
     local row = CreateFrame("Frame", nil, panel.list)
-    row:SetSize(SidePanel.ROW_WIDTH, HEAD_HEIGHT)
+    row:SetSize(ROW_WIDTH, HEAD_HEIGHT)
     row.tooltipItem = tooltipItem
     row.fade = {}
 
@@ -440,6 +441,7 @@ local function CreateChoice(row, index)
     choice.name:SetPoint("RIGHT", choice.effect, "LEFT", -COLUMN_GAP, 0)
     choice.name:SetJustifyH("LEFT")
     choice:SetScript("OnClick", function(self) row.onPick(row.entry, self.offer.food) end)
+    choice.UpdateTooltip = row.onChoiceEnter
     choice:HookScript("OnEnter", row.onChoiceEnter)
     choice:HookScript("OnLeave", W.HideHint)
     row.choiceButtons[index] = choice
@@ -460,7 +462,7 @@ end
 
 function SidePanel.CreateChoices(row, onPick, onChoiceEnter)
     local choices = CreateFrame("Frame", nil, row)
-    choices:SetPoint("TOPLEFT", SidePanel.TEXT_INDENT, -(HEAD_HEIGHT + CHOICES_TOP))
+    choices:SetPoint("TOPLEFT", TEXT_INDENT, -(HEAD_HEIGHT + CHOICES_TOP))
     choices:SetPoint("TOPRIGHT", 0, -(HEAD_HEIGHT + CHOICES_TOP))
     AddBackground(choices, C.control)
     row.selection = choices:CreateTexture(nil, "BORDER")

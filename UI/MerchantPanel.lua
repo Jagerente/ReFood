@@ -6,10 +6,7 @@ local Merchant = ns.Merchant
 local Catalog = ns.Catalog
 local SidePanel = ns.SidePanel
 
-local MerchantPanel = {}
-ns.MerchantPanel = MerchantPanel
-
-local Money, ShortMoney = SidePanel.Money, SidePanel.ShortMoney
+local Money, ShortMoney, AddLine = SidePanel.Money, SidePanel.ShortMoney, SidePanel.AddLine
 local HOSTS = { "MerchantFrame" }
 
 local panel
@@ -30,10 +27,6 @@ local function Detail(entry)
     return SidePanel.Stock(entry), C.muted
 end
 
-local function AddLine(text, color)
-    GameTooltip:AddLine(text, color[1], color[2], color[3], true)
-end
-
 local function ShowChoiceTooltip(choice)
     local offer = choice.offer
     GameTooltip:SetOwner(choice, "ANCHOR_RIGHT")
@@ -45,7 +38,6 @@ local function ShowChoiceTooltip(choice)
     else
         AddLine(L.AH_TIP_ENOUGH, C.muted)
     end
-    if offer.entry.offer ~= offer then AddLine(L.AH_TIP_PICK, C.accent) end
     GameTooltip:Show()
 end
 
@@ -97,7 +89,6 @@ local function Create()
         title = "VENDOR_TITLE",
         empty = "VENDOR_EMPTY",
         onAction = function() Merchant.BuyAll() end,
-        actionHint = "VENDOR_BUY_ALL_DESC",
         toggles = {
             { key = "merchantAuto", label = "VENDOR_AUTO", desc = "VENDOR_AUTO_DESC" },
             { key = "countBank", label = "COUNT_BANK", desc = "COUNT_BANK_DESC" },
@@ -107,10 +98,6 @@ local function Create()
         offset = { x = "merchantX", y = "merchantY" },
         settingsPage = "vendor",
     })
-end
-
-function MerchantPanel.IsShown()
-    return panel ~= nil and panel:IsShown()
 end
 
 ns.Listen("MERCHANT_SHOWN", function(open)

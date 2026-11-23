@@ -14,12 +14,17 @@ local Bar = { buttons = {} }
 ns.Bar = Bar
 
 local ORDER = { "food", "drink", "rest", "buff" }
-local BUTTON_NAMES = {
-    food = "ReFoodFoodButton",
-    drink = "ReFoodDrinkButton",
-    rest = "ReFoodRestButton",
-    buff = "ReFoodBuffButton",
+local NAMES = {
+    food = "ReFoodFood",
+    drink = "ReFoodDrink",
+    rest = "ReFoodRest",
+    buff = "ReFoodBuff",
 }
+local KEY_BUTTON, PANEL_BUTTON = "Button", "PanelButton"
+local TIP_GLYPH_HEIGHT = 14
+local TIP_GLYPH = UI.InlineGlyph(TIP_GLYPH_HEIGHT)
+local TIP_GAP = " "
+local TIP_LIST_MIN_KINDS = 2
 local PAD = 4
 local HEADER_HEIGHT, HEADER_GAP = 14, 5
 local HEADER_GLYPH_HEIGHT, HEADER_GLYPH_GAP = 11, 5
@@ -39,6 +44,7 @@ local PERCENT = 100
 local ICON_BACK = { 0, 0, 0, 0.7 }
 local STRATA = "MEDIUM"
 local NO_ACTION = "none"
+local DRAG_MODIFIERS = { "alt-", "shift-", "alt-shift-", "alt-ctrl-", "alt-ctrl-shift-", "ctrl-shift-" }
 local SHOW, HIDE = "show", "hide"
 local VISIBILITY_STATES = {
     always = SHOW,
@@ -48,6 +54,7 @@ local VISIBILITY_STATES = {
 
 local holder, bar, header, glyph, title
 local buttons = Bar.buttons
+local keyButtons = {}
 local visible = {}
 local barFade = {}
 local driverState
@@ -56,7 +63,7 @@ local moving = false
 local timerTicker, warnTimer
 
 function Bar.Binding(key)
-    return "CLICK " .. BUTTON_NAMES[key] .. ":LeftButton"
+    return "CLICK " .. NAMES[key] .. KEY_BUTTON .. ":LeftButton"
 end
 
 local function FormatTime(seconds)
@@ -66,7 +73,6 @@ local function FormatTime(seconds)
     end
     return tostring(seconds)
 end
-Bar.FormatTime = FormatTime
 
 local function FedState()
     local spell, expiration = Auras.Fed()
@@ -74,97 +80,124 @@ local function FedState()
     local left = expiration > 0 and expiration - GetTime() or math.huge
     return spell, left, left <= ns.db.fedWarnMinutes * SECONDS_PER_MINUTE
 end
-Bar.FedState = FedState
+
+local function CountColor(foodType, kept, fullColor)
+    if kept == 0 then return C.bad end
+    if kept < Inventory.StockTarget(foodType) then return C.warn end
+    return fullColor or C.text
+end
 
 local function AddLine(text, color)
     GameTooltip:AddLine(text, color[1], color[2], color[3], true)
 end
 
-local function AddPair(left, right, color)
-    GameTooltip:AddDoubleLine(left, right, C.muted[1], C.muted[2], C.muted[3], color[1], color[2], color[3])
+local function AddRow(left, right, leftColor, rightColor)
+    GameTooltip:AddDoubleLine(left, right, leftColor[1], leftColor[2], leftColor[3], rightColor[1], rightColor[2], rightColor[3])
+end
+
+local function AddGap()
+    GameTooltip:AddLine(TIP_GAP)
 end
 
 local function Describe(entry)
-    return string.format(L.FOOD_WITH_EFFECT, Catalog.Name(entry), Catalog.Effect(entry))
+    return Catalog.Name(entry) .. " " .. UI.Colored(Catalog.Effect(entry), C.faint)
 end
 
-local function AddPickLine(verb, entry)
-    if entry then AddPair(verb, Describe(entry), C.text) end
+local function StockValue(foodType, have)
+    local count = UI.Colored(have, CountColor(foodType, have, C.good))
+    return string.format(L.TIP_STOCK_VALUE, count, Inventory.StockTarget(foodType))
 end
 
-local function AddBagLines(record)
-    local owned = record.owned
-    if #owned == 0 then return end
-    local foodType = record.type
-    local grade = Inventory.StockFood(foodType)
-    GameTooltip:AddLine(" ")
+local function AddHeader(record)
+    AddGap()
+    AddRow(TIP_GLYPH .. " " .. ns.TITLE, L["TYPE_" .. record.key], C.accent, C.text)
+end
+
+local function AddStockLines(foodType, grade)
+    if Inventory.StockTarget(foodType) == 0 then return end
+    local have, bank = Inventory.StockCount(foodType, grade)
+    AddRow(L.TIP_STOCK, StockValue(foodType, have), C.muted, C.muted)
+    if bank > 0 then AddRow(L.TIP_IN_BANK, bank, C.muted, C.text) end
+end
+
+local function FedValue()
+    local spell, left, expiring = FedState()
+    if not spell then return L.TIP_NOT_FED, C.warn end
+    if left == math.huge then return L.TIP_FED_ON, C.text end
+    return string.format(L.TIP_FED_LEFT, FormatTime(left)), expiring and C.warn or C.text
+end
+
+local function AddBuffLines()
+    local value, color = FedValue()
+    AddRow(L.TIP_FED, value, C.muted, color)
+    local kind = Catalog.BuffKind()
+    AddRow(L.BUFF_KIND, kind and Catalog.KindName(kind) or L.BUFF_ANY, C.muted, C.text)
+end
+
+local function RestValue(record)
+    local foodType, main = record.type, record.active.main
+    local have = Inventory.StockCount(foodType)
+    local count = Inventory.StockTarget(foodType) > 0 and StockValue(foodType, have)
+        or UI.Colored(have, have > 0 and C.text or C.bad)
+    if not main then return count end
+    return UI.Colored(Catalog.Name(main), C.text) .. " " .. UI.Colored(Catalog.ShortEffect(main), C.faint) .. " " .. count
+end
+
+local function AddRestRow(record)
+    AddRow(L["TYPE_" .. record.key], RestValue(record), C.muted, C.muted)
+end
+
+local function AddFactLines(record, grade)
+    if record.rest then
+        AddRestRow(Picker.records.food)
+        AddRestRow(Picker.records.drink)
+    else
+        AddStockLines(record.type, grade)
+        if Catalog.IsBuff(record.type) then AddBuffLines() end
+    end
+    if InCombatLockdown() and record.text ~= record.active.text then AddLine(L.TIP_AFTER_COMBAT, C.warn) end
+end
+
+local function AddBagLines(record, grade)
+    if record.rest then return end
+    local foodType, owned = record.type, record.owned
+    local stocked = Inventory.StockTarget(foodType) > 0
+    local listed = #owned >= TIP_LIST_MIN_KINDS
+    if listed then AddGap() end
+    if stocked and grade then
+        AddLine(string.format(L["TIP_STOCK_FROM_" .. foodType.key], UI.Colored(Catalog.Name(grade), C.text)), C.faint)
+    end
+    if not listed then return end
     for index = #owned, 1, -1 do
         local entry = owned[index]
-        local count = string.format(L.COUNT, Inventory.Count(entry.item))
-        if grade and not Inventory.Counts(entry, grade) then
-            AddPair(string.format(L.TIP_WEAKER, Catalog.Name(entry)), count, C.muted)
-        else
-            AddPair(Describe(entry), count, C.text)
-        end
+        local color = (not stocked or Inventory.Counts(entry, grade)) and C.text or C.faint
+        AddRow(Describe(entry), string.format(L.COUNT, Inventory.Count(entry.item)), color, color)
     end
 end
 
-local function AddStockLines(foodType)
-    local target = Inventory.StockTarget(foodType)
-    if target == 0 then return end
-    local grade = Inventory.StockFood(foodType)
-    local have, bank = Inventory.StockCount(foodType, grade)
-    AddLine(string.format(L.TIP_STOCK, have, target), have > 0 and C.muted or C.bad)
-    if grade then AddLine(string.format(L["TIP_STOCK_FROM_" .. foodType.key], Catalog.Name(grade)), C.muted) end
-    if bank > 0 then AddLine(string.format(L.TIP_IN_BANK, bank), C.muted) end
-end
-
-local function AddFedLines()
-    local spell, left, expiring = FedState()
-    if not spell then
-        AddLine(L.TIP_NOT_FED, C.warn)
-    elseif left == math.huge then
-        AddLine(L.TIP_FED, C.good)
-    else
-        AddLine(string.format(L.TIP_FED_LEFT, FormatTime(left)), expiring and C.warn or C.good)
+local function AddHintLines()
+    AddGap()
+    if not InCombatLockdown() then
+        AddRow(L.TIP_SHIFT_DRAG, L.TIP_TAKE_MACRO, C.accent, C.text)
+        if not ns.db.locked then AddRow(L.TIP_ALT_DRAG, L.TIP_MOVE, C.accent, C.text) end
     end
-    local kind = Catalog.BuffKind()
-    AddLine(kind and string.format(L.TIP_BUFF_KIND, Catalog.KindName(kind)) or L.TIP_BUFF_ANY, C.muted)
-end
-
-local function AddTypeLines(record)
-    local active = record.active
-    if not active.main then
-        AddLine(L["TIP_NONE_" .. record.key], C.bad)
-    else
-        AddPickLine(L["TIP_CLICK_" .. record.key], active.main)
-    end
-    AddBagLines(record)
-    AddStockLines(record.type)
-end
-
-local function AddRestLines(record)
-    local food, drink = Picker.records.food.active.main, Picker.records.drink.active.main
-    if not food and not drink then
-        AddLine(L.TIP_NONE_rest, C.bad)
-        return
-    end
-    AddPickLine(L.TIP_CLICK_food, food)
-    if drink ~= food then AddPickLine(L.TIP_CLICK_drink, drink) end
+    AddRow(L.TIP_RIGHT_CLICK, L.TIP_SETTINGS, C.accent, C.text)
 end
 
 local function ShowTooltip(button)
     local record = button.record
+    local entry = Picker.Shown(record)
+    local grade = record.type and Inventory.StockFood(record.type)
     GameTooltip:SetOwner(button, UI.VerticalAnchor(button))
-    GameTooltip:SetText(L["TYPE_" .. record.key], C.text[1], C.text[2], C.text[3])
-    if record.rest then
-        AddRestLines(record)
+    if entry then
+        GameTooltip:SetItemByID(entry.item)
     else
-        if Catalog.IsBuff(record.type) then AddFedLines() end
-        AddTypeLines(record)
+        GameTooltip:SetText(L["TYPE_" .. record.key], C.text[1], C.text[2], C.text[3])
     end
-    if InCombatLockdown() and record.text ~= record.active.text then AddLine(L.TIP_AFTER_COMBAT, C.warn) end
-    AddLine(L.TIP_HINT, C.muted)
+    AddHeader(record)
+    AddFactLines(record, grade)
+    AddBagLines(record, grade)
+    AddHintLines()
     GameTooltip:Show()
 end
 
@@ -178,13 +211,7 @@ local function PaintCooldown(button, entry)
     end
 end
 
-local function CountColor(foodType, kept)
-    if kept == 0 then return C.bad end
-    if kept < Inventory.StockTarget(foodType) then return C.warn end
-    return C.text
-end
-
-local function PaintCount(button, entry, have)
+local function PaintCount(button, have)
     local foodType = button.record.type
     local shown = ns.db.showCounts and foodType ~= nil
     button.count:SetShown(shown)
@@ -224,7 +251,7 @@ end
 local function PaintRest(button)
     local active = button.record.active
     local food, drink = active.food, active.drink
-    local split = food ~= nil and drink ~= nil and food ~= drink
+    local split = food ~= nil and drink ~= nil and food.item ~= drink.item
     SetHalves(button, split)
     local first = food or drink
     button.icon:SetTexture(first and Catalog.Icon(first) or nil)
@@ -247,7 +274,7 @@ local function PaintButton(button)
     button.icon:SetDesaturated(have == 0)
     local fed = PaintTimer(button)
     button.art:SetAlpha(have == 0 and EMPTY_ALPHA or fed and FED_ALPHA or 1)
-    PaintCount(button, entry, have)
+    PaintCount(button, have)
     PaintCooldown(button, entry)
 end
 
@@ -323,7 +350,7 @@ local function StopMoving()
 end
 
 local function OnDragStart(button)
-    if IsAltKeyDown() then return end
+    if not IsShiftKeyDown() or IsAltKeyDown() then return end
     GameTooltip:Hide()
     ns.Macros.Pickup(button.record.key)
 end
@@ -334,8 +361,7 @@ local function StartAltMoving()
     return StartMoving()
 end
 
-local function OnPostClick(_, mouseButton, down)
-    if down then return end
+local function OnPanelMouseUp(_, mouseButton)
     if mouseButton == "RightButton" then
         ns.Options.Toggle()
     elseif mouseButton == "MiddleButton" and not ns.db.locked and not InCombatLockdown() then
@@ -399,20 +425,32 @@ local function SetPressed(button, pressed)
     button.art:SetPoint("BOTTOMRIGHT", BORDER - inset, inset - BORDER)
 end
 
-local function CreateButton(key)
-    local button = CreateFrame("Button", BUTTON_NAMES[key], bar, "SecureActionButtonTemplate")
-    button.record = Picker.records[key]
+local function CreateKeyButton(key)
+    local button = CreateFrame("Button", NAMES[key] .. KEY_BUTTON, UIParent, "SecureActionButtonTemplate")
     button:RegisterForClicks("AnyUp", "AnyDown")
+    button:SetAttribute("type", "macro")
+    button:SetAttribute("macrotext", Picker.records[key].active.text)
+    keyButtons[key] = button
+end
+
+local function CreateButton(key)
+    local button = CreateFrame("Button", NAMES[key] .. PANEL_BUTTON, bar, "SecureActionButtonTemplate")
+    button.record = Picker.records[key]
+    button.UpdateTooltip = ShowTooltip
+    button:RegisterForClicks("AnyUp")
     button:RegisterForDrag("LeftButton")
     button:SetAttribute("type", "macro")
+    button:SetAttribute("useOnKeyDown", false)
     button:SetAttribute("*type2", NO_ACTION)
     button:SetAttribute("*type3", NO_ACTION)
-    button:SetAttribute("alt-type1", NO_ACTION)
+    for _, prefix in ipairs(DRAG_MODIFIERS) do
+        button:SetAttribute(prefix .. "type1", NO_ACTION)
+    end
     button:SetAttribute("macrotext", button.record.active.text)
     button:Hide()
     CreateArt(button)
 
-    button:SetScript("PostClick", OnPostClick)
+    button:SetScript("PostClick", OnPanelMouseUp)
     button:SetScript("OnDragStart", OnDragStart)
     W.DragHandle(button, StartAltMoving, StopMoving)
     button:HookScript("OnEnter", function(self)
@@ -430,21 +468,12 @@ local function CreateButton(key)
     return button
 end
 
-local function OnHeaderMouseUp(_, mouseButton)
-    if mouseButton == "RightButton" then
-        ns.Options.Toggle()
-    elseif mouseButton == "MiddleButton" and not ns.db.locked and not InCombatLockdown() then
-        Bar.ResetPosition()
-    end
-end
-
 local function CreateHeader()
     header = CreateFrame("Frame", nil, bar)
     header:SetHeight(HEADER_HEIGHT)
     header:SetPoint("TOPLEFT", PAD, -PAD)
     header:SetPoint("TOPRIGHT", -PAD, -PAD)
     header:EnableMouse(true)
-    Bar.header = header
     glyph = UI.AddonGlyph(header, HEADER_GLYPH_HEIGHT)
     glyph:SetPoint("LEFT")
     title = UI.BoldText(header, T.label, C.text)
@@ -453,7 +482,7 @@ local function CreateHeader()
         W.ShowHint(self, ns.db.locked and "HEADER_LOCKED_DESC" or "HEADER_DESC")
     end)
     header:SetScript("OnLeave", W.HideHint)
-    header:SetScript("OnMouseUp", OnHeaderMouseUp)
+    header:SetScript("OnMouseUp", OnPanelMouseUp)
     W.DragHandle(header, function()
         if ns.db.locked or InCombatLockdown() then return false end
         StartMoving()
@@ -490,6 +519,7 @@ local function Create()
     CreateHeader()
     for _, key in ipairs(ORDER) do
         CreateButton(key)
+        CreateKeyButton(key)
     end
 end
 
@@ -574,14 +604,12 @@ function Bar.Refresh()
     Paint()
 end
 
-function Bar.IsShown()
-    return holder ~= nil and holder:IsShown()
-end
-
 local function ApplyTexts()
     if not holder or InCombatLockdown() then return end
     for key, button in pairs(buttons) do
-        button:SetAttribute("macrotext", Picker.records[key].active.text)
+        local text = Picker.records[key].active.text
+        button:SetAttribute("macrotext", text)
+        keyButtons[key]:SetAttribute("macrotext", text)
     end
 end
 

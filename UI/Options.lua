@@ -7,6 +7,7 @@ local T = UI.TEXT
 local W = ns.Widgets
 local Catalog = ns.Catalog
 local Inventory = ns.Inventory
+local Picker = ns.Picker
 
 local Options = {}
 ns.Options = Options
@@ -26,7 +27,17 @@ local FLOOR_MAX = 60
 local STOCK_MAX = 60
 local BUFF_STOCK_MAX = 20
 local FED_WARN_MAX = 10
-local BUTTON_ROW_HEIGHT, BUTTON_GAP = 22, 8
+local TYPE_GAP = 14
+local TYPE_HEAD_HEIGHT, TYPE_ICON_SIZE, TYPE_TEXT_GAP = 36, 30, 10
+local FORM_INDENT = TYPE_ICON_SIZE + TYPE_TEXT_GAP
+local FORM_WIDTH = PAGE_WIDTH - FORM_INDENT
+local FORM_ROW_HEIGHT, FORM_TOP_GAP, FORM_LABEL_GAP = 26, 4, 8
+local FORM_SLIDER_WIDTH = 180
+local PICKER_HEIGHT, PICKER_PAD = 22, 10
+local KIND_COLUMNS = 2
+local ICON_BACK = { 0, 0, 0, 0.7 }
+local ICON_CROP = 0.08
+local LOCKED_SWITCH_ALPHA = 0.5
 local ICON_SIZE_MIN, ICON_SIZE_MAX = 24, 64
 local SPACING_MAX = 16
 local RESET_CONFIRM_SECONDS = 3
@@ -49,9 +60,9 @@ local function Track(page, widget)
     return widget
 end
 
-local function AddToggle(page, key, label, desc)
+local function AddToggle(page, key, label, desc, gap)
     local get, set = Setting(key)
-    return page.stack:Add(Track(page, W.Toggle(page.content, PAGE_WIDTH, { label = label, desc = desc, get = get, set = set })))
+    return page.stack:Add(Track(page, W.Toggle(page.content, PAGE_WIDTH, { label = label, desc = desc, get = get, set = set })), gap)
 end
 
 local function AddSlider(page, key, label, min, max, format, gap)
@@ -122,55 +133,244 @@ local function IsCurrent(page)
     return window and window:IsShown() and currentPage == page
 end
 
-local function AddTypeToggle(page, foodType)
-    return page.stack:Add(Track(page, W.Toggle(page.content, PAGE_WIDTH, {
-        label = "TRACK_" .. foodType.key,
-        desc = "TRACK_" .. foodType.key .. "_DESC",
-        get = function() return Catalog.IsEnabled(foodType) end,
-        set = function(value) Catalog.SetEnabled(foodType, value) end,
-        locked = function() return not Catalog.HasPool(foodType) end,
-        lockedDesc = "NO_MANA_DESC",
-        lockedState = false,
-    })))
-end
-
-local function NowText(foodType)
-    local active = ns.Picker.records[foodType.key].active
-    local text = active.main and string.format(L["NOW_CLICK_" .. foodType.key], Catalog.Name(active.main)) or L.NOW_NONE
-    local grade = Inventory.StockFood(foodType)
-    if grade then text = text .. "\n" .. string.format(L["NOW_STOCK_" .. foodType.key], Catalog.Name(grade)) end
-    if foodType.floorKey then
-        local floor = math.floor(Catalog.EffectiveFloor(foodType, UnitLevel("player")))
-        if floor > 0 then text = text .. "\n" .. string.format(L["NOW_FLOOR_" .. foodType.key], floor) end
-    end
-    return text
-end
-
-local function AddNowLine(page, foodType)
-    return AddLiveText(page, function() return NowText(foodType) end, C.muted, PARAGRAPH_GAP)
-end
-
 local function FormatPercent(value)
     return string.format("%d%%", value)
 end
 
-local function FormatMinutes(value)
-    return string.format(L.MINUTES, value)
+local function ShowText(owner, text)
+    if not text then return end
+    GameTooltip:SetOwner(owner, "ANCHOR_RIGHT")
+    GameTooltip:SetText(text, 1, 1, 1, 1, true)
+    GameTooltip:Show()
 end
 
-local function AddKey(page, key)
-    return page.stack:Add(Track(page, W.KeyBind(page.content, PAGE_WIDTH, {
-        label = "KEY_" .. key, desc = "KEY_DESC", binding = ns.Bar.Binding(key),
-    })))
+local function AddBlockRow(block, labelKey, hint)
+    local row = CreateFrame("Frame", nil, block)
+    row:SetSize(FORM_WIDTH, FORM_ROW_HEIGHT)
+    row:EnableMouse(true)
+    row.label = UI.Text(row, T.label, C.muted)
+    row.label:SetPoint("LEFT")
+    row.label:SetJustifyH("LEFT")
+    W.Bind(row.label, labelKey)
+    if hint then
+        row:SetScript("OnEnter", function(self) ShowText(self, hint()) end)
+        row:SetScript("OnLeave", W.HideHint)
+    end
+    block.rows[#block.rows + 1] = row
+    return row
 end
 
-local function AddTypeSection(page, foodType)
-    AddHeading(page, "SECTION_" .. foodType.key)
-    AddTypeToggle(page, foodType)
-    AddKey(page, foodType.key)
-    AddNowLine(page, foodType)
-    AddSlider(page, foodType.floorKey, "FLOOR_" .. foodType.key, 0, FLOOR_MAX, FormatPercent, SECTION_GAP)
-    AddSlider(page, foodType.stockKey, "STOCK_" .. foodType.key, 0, STOCK_MAX)
+local function Attach(row, control)
+    control:SetPoint("RIGHT")
+    row.label:SetPoint("RIGHT", control, "LEFT", -FORM_LABEL_GAP, 0)
+    row.control = control
+    return control
+end
+
+local function CreateHead(block)
+    local head = CreateFrame("Button", nil, block)
+    head:SetPoint("TOPLEFT")
+    head:SetPoint("TOPRIGHT")
+    head:SetHeight(TYPE_HEAD_HEIGHT)
+    W.RowHover(head)
+    local back = head:CreateTexture(nil, "ARTWORK")
+    back:SetColorTexture(unpack(ICON_BACK))
+    back:SetSize(TYPE_ICON_SIZE, TYPE_ICON_SIZE)
+    back:SetPoint("LEFT")
+    block.icon = head:CreateTexture(nil, "OVERLAY")
+    block.icon:SetPoint("TOPLEFT", back, 1, -1)
+    block.icon:SetPoint("BOTTOMRIGHT", back, -1, 1)
+    block.icon:SetTexCoord(ICON_CROP, 1 - ICON_CROP, ICON_CROP, 1 - ICON_CROP)
+    block.switch = W.CreateSwitch(head)
+    block.switch:SetPoint("RIGHT")
+    block.name = UI.BoldText(head, T.body, C.text)
+    block.name:SetPoint("TOPLEFT", back, "TOPRIGHT", TYPE_TEXT_GAP, 0)
+    block.name:SetPoint("RIGHT", block.switch, "LEFT", -TYPE_TEXT_GAP, 0)
+    block.name:SetJustifyH("LEFT")
+    block.status = UI.Text(head, T.label, C.muted)
+    block.status:SetPoint("BOTTOMLEFT", back, "BOTTOMRIGHT", TYPE_TEXT_GAP, 0)
+    block.status:SetPoint("RIGHT", block.switch, "LEFT", -TYPE_TEXT_GAP, 0)
+    block.status:SetJustifyH("LEFT")
+    head:SetScript("OnClick", function()
+        if block:CanToggle() then block:Toggle() end
+    end)
+    head:HookScript("OnEnter", function(self)
+        W.SetSwitchHover(block.switch, block:CanToggle())
+        block:ShowHeadTooltip(self)
+    end)
+    head:HookScript("OnLeave", function(self)
+        W.SetSwitchHover(block.switch, false)
+        W.HideHint(self)
+    end)
+    block.head = head
+end
+
+local function PaintHead(block, animate)
+    local open = block:IsOpen()
+    local status, color, available = block:Status()
+    block.icon:SetTexture(Catalog.Icon(block:HeadItem()))
+    block.icon:SetDesaturated(not open or not available)
+    block.name:SetText(L["TYPE_" .. block.key])
+    block.name:SetTextColor(unpack(open and C.text or C.muted))
+    block.status:SetText(status)
+    block.status:SetTextColor(unpack(open and color or C.muted))
+    block.switch:SetAlpha(block:CanToggle() and 1 or LOCKED_SWITCH_ALPHA)
+    W.SetSwitch(block.switch, open, animate)
+end
+
+local function LayoutBlock(block, animate)
+    PaintHead(block, animate)
+    local open = block:IsOpen()
+    local y = TYPE_HEAD_HEIGHT + (open and FORM_TOP_GAP or 0)
+    for _, row in ipairs(block.rows) do
+        local shown = open and (row.wanted == nil or row.wanted())
+        row:SetShown(shown)
+        if shown then
+            if row.control.Refresh then row.control:Refresh() end
+            row:ClearAllPoints()
+            row:SetPoint("TOPLEFT", row.inset or FORM_INDENT, -y)
+            y = y + row:GetHeight()
+        end
+    end
+    block:SetHeight(y)
+end
+
+local function NewBlock(page, mixin, key)
+    local block = Mixin(CreateFrame("Frame", nil, page.content), mixin)
+    block:SetWidth(PAGE_WIDTH)
+    block.key = key
+    block.rows = {}
+    block.Refresh = LayoutBlock
+    CreateHead(block)
+    return block
+end
+
+local function AddBlock(page, block, gap)
+    LayoutBlock(block, false)
+    page.stack:Add(Track(page, block), gap)
+end
+
+local function AddSliderRow(block, labelKey, key, max, format, hint)
+    local row = AddBlockRow(block, labelKey, hint)
+    local get, set = Setting(key)
+    Attach(row, W.Slider(row, FORM_SLIDER_WIDTH, { min = 0, max = max, step = 1, get = get, set = set, format = format }))
+    return row
+end
+
+local function AddKeyRow(block)
+    local row = AddBlockRow(block, "KEY_ROW")
+    Attach(row, W.KeyBind(row, { desc = "KEY_DESC", binding = ns.Bar.Binding(block.key) }))
+end
+
+local function AddMacroRow(block)
+    local row = AddBlockRow(block, "MACRO_ROW")
+    local button = W.Button(row, "MACRO_PICKUP", function() ns.Macros.Pickup(block.key) end, nil, W.KEY_BUTTON_WIDTH)
+    button:HookScript("OnEnter", function(self) W.ShowHint(self, "MACRO_BUTTON_DESC") end)
+    button:HookScript("OnLeave", W.HideHint)
+    Attach(row, button)
+end
+
+local TypeBlock = {}
+
+function TypeBlock:CanToggle()
+    return Catalog.HasPool(self.type)
+end
+
+function TypeBlock:IsOpen()
+    return Catalog.IsActive(self.type)
+end
+
+function TypeBlock:Toggle()
+    Catalog.SetEnabled(self.type, not Catalog.IsEnabled(self.type))
+end
+
+function TypeBlock:HeadItem()
+    local foods = self.type.foods
+    return Picker.Shown(Picker.records[self.key]) or foods[#foods]
+end
+
+function TypeBlock:Status()
+    if not self:CanToggle() then return L.NO_MANA, C.muted end
+    local main = Picker.records[self.key].active.main
+    if main then return Catalog.Name(main), C.muted, true end
+    return L.NONE_IN_BAGS, C.bad
+end
+
+function TypeBlock:ShowHeadTooltip(owner)
+    GameTooltip:SetOwner(owner, "ANCHOR_RIGHT")
+    GameTooltip:SetItemByID(self:HeadItem().item)
+    GameTooltip:Show()
+end
+
+local RestBlock = {}
+
+function RestBlock:CanToggle()
+    return Catalog.IsActive(Catalog.byKey.food) and Catalog.IsActive(Catalog.byKey.drink)
+end
+
+function RestBlock:IsOpen()
+    return ns.db.restButton and self:CanToggle()
+end
+
+function RestBlock:Toggle()
+    ns.Set("restButton", not ns.db.restButton)
+end
+
+function RestBlock:HeadItem()
+    local foods = Catalog.byKey.food.foods
+    return Picker.Shown(Picker.records.rest) or foods[#foods]
+end
+
+function RestBlock:Status()
+    if not Catalog.HasPool(Catalog.byKey.drink) then return L.NO_MANA, C.muted end
+    if not self:CanToggle() then return L.REST_NEEDS_BOTH, C.muted end
+    local food, drink = Picker.records.food.active.main, Picker.records.drink.active.main
+    if food and drink and food.item ~= drink.item then
+        return Catalog.Name(food) .. ", " .. Catalog.Name(drink), C.muted, true
+    end
+    local single = food or drink
+    if single then return Catalog.Name(single), C.muted, true end
+    return L.NONE_IN_BAGS, C.bad
+end
+
+function RestBlock:ShowHeadTooltip(owner)
+    W.ShowHint(owner, "REST_BUTTON_DESC")
+end
+
+local function StockHint(foodType)
+    return function()
+        local grade = Inventory.StockFood(foodType)
+        return grade and string.format(L["STOCK_COUNTS_" .. foodType.key], Catalog.Name(grade))
+    end
+end
+
+local function FloorHint(foodType)
+    return function()
+        local floor = math.floor(Catalog.EffectiveFloor(foodType, UnitLevel("player")))
+        return string.format(L["FLOOR_DESC_" .. foodType.key], floor)
+    end
+end
+
+local function NewTypeBlock(page, foodType)
+    local block = NewBlock(page, TypeBlock, foodType.key)
+    block.type = foodType
+    return block
+end
+
+local function AddTypeBlock(page, foodType, gap)
+    local block = NewTypeBlock(page, foodType)
+    AddSliderRow(block, "STOCK_ROW", foodType.stockKey, STOCK_MAX, nil, StockHint(foodType))
+    AddSliderRow(block, "FLOOR_ROW", foodType.floorKey, FLOOR_MAX, FormatPercent, FloorHint(foodType))
+    AddKeyRow(block)
+    AddMacroRow(block)
+    AddBlock(page, block, gap)
+end
+
+local function AddRestBlock(page)
+    local block = NewBlock(page, RestBlock, Picker.REST)
+    AddKeyRow(block)
+    AddMacroRow(block)
+    AddBlock(page, block, TYPE_GAP)
 end
 
 local ANY_KIND = "any"
@@ -187,85 +387,75 @@ local function KindItems()
     return items
 end
 
-local function FedText()
-    local spell, left = ns.Bar.FedState()
-    if not spell then return L.NOW_NOT_FED end
-    if left == math.huge then return L.NOW_FED end
-    return string.format(L.NOW_FED_LEFT, ns.Bar.FormatTime(left))
+local function CreatePickerButton(row, onClick)
+    local button = CreateFrame("Button", nil, row)
+    button:SetSize(FORM_SLIDER_WIDTH, PICKER_HEIGHT)
+    local fill = button:CreateTexture(nil, "BACKGROUND")
+    fill:SetAllPoints()
+    W.HoverFill(button, fill, C.control, C.controlHover)
+    button.text = UI.Text(button, T.label, C.text)
+    button.text:SetPoint("LEFT", PICKER_PAD, 0)
+    button.text:SetPoint("RIGHT", -PICKER_PAD, 0)
+    button.text:SetJustifyH("LEFT")
+    button:SetScript("OnClick", onClick)
+    return button
 end
 
-local function BuffNowText()
-    local text = FedText()
-    local active = ns.Picker.records.buff.active
-    text = text .. "\n" .. (active.main and string.format(L.NOW_CLICK_buff, Catalog.Name(active.main)) or L.NOW_NONE)
-    local grade = Inventory.StockFood(Catalog.BUFF)
-    if grade then text = text .. "\n" .. string.format(L.NOW_STOCK_buff, Catalog.Name(grade)) end
-    return text
+local function ChooseKind(block, value)
+    local key = value ~= ANY_KIND and value or nil
+    block.picking = false
+    if ns.charDB.buffKind == key then
+        LayoutBlock(block, false)
+    else
+        Catalog.SetBuffKind(key)
+    end
 end
 
-local function AddBuffSection(page)
-    local buff = Catalog.BUFF
-    AddHeading(page, "SECTION_buff")
-    AddTypeToggle(page, buff)
-    AddKey(page, buff.key)
-    page.stack:Add(Track(page, W.Choices(page.content, PAGE_WIDTH, {
-        label = "BUFF_KIND",
-        columns = 2,
+local function AddKindRows(block)
+    local row = AddBlockRow(block, "BUFF_KIND", function() return L.BUFF_KIND_DESC end)
+    local button = Attach(row, CreatePickerButton(row, function()
+        block.picking = not block.picking
+        LayoutBlock(block, false)
+    end))
+    function button:Refresh()
+        local kind = Catalog.BuffKind()
+        self.text:SetText(kind and Catalog.KindName(kind) or L.BUFF_ANY)
+        self.text:SetTextColor(unpack(block.picking and C.accent or C.text))
+    end
+    local list = W.Choices(block, PAGE_WIDTH, {
+        columns = KIND_COLUMNS,
         items = KindItems,
         get = function()
             local kind = Catalog.BuffKind()
             return kind and kind.key or ANY_KIND
         end,
-        set = function(value) Catalog.SetBuffKind(value ~= ANY_KIND and value or nil) end,
-    })), SECTION_GAP)
-    AddLiveText(page, BuffNowText, C.muted, PARAGRAPH_GAP)
-    local stock = AddSlider(page, buff.stockKey, "STOCK_buff", 0, BUFF_STOCK_MAX, nil, SECTION_GAP)
-    local paintStock = stock.Refresh
-    function stock:Refresh(animate)
-        self:SetShown(Catalog.BuffKind() ~= nil)
-        paintStock(self, animate)
-    end
-    AddSlider(page, "fedWarnMinutes", "FED_WARN", 0, FED_WARN_MAX, FormatMinutes)
-    AddParagraph(page, "BUFF_EXPLAIN", 8)
+        set = function(value) ChooseKind(block, value) end,
+    })
+    list.control = list
+    list.inset = 0
+    list.wanted = function() return block.picking end
+    block.rows[#block.rows + 1] = list
 end
 
-local MACRO_KEYS = { "food", "drink", "rest", "buff" }
-local MACRO_COLUMNS = 2
-
-local function AddMacroButtons(page)
-    local row = CreateFrame("Frame", nil, page.content)
-    local lines = math.ceil(#MACRO_KEYS / MACRO_COLUMNS)
-    row:SetSize(PAGE_WIDTH, lines * BUTTON_ROW_HEIGHT + (lines - 1) * BUTTON_GAP)
-    local width = (PAGE_WIDTH - BUTTON_GAP * (MACRO_COLUMNS - 1)) / MACRO_COLUMNS
-    for index, key in ipairs(MACRO_KEYS) do
-        local button = W.Button(row, "MACRO_" .. key, function() ns.Macros.Pickup(key) end, nil, width)
-        local column, line = (index - 1) % MACRO_COLUMNS, math.floor((index - 1) / MACRO_COLUMNS)
-        button:SetPoint("TOPLEFT", column * (width + BUTTON_GAP), -line * (BUTTON_ROW_HEIGHT + BUTTON_GAP))
-        button:HookScript("OnEnter", function(self) W.ShowHint(self, "MACRO_BUTTON_DESC") end)
-        button:HookScript("OnLeave", W.HideHint)
-    end
-    page.stack:Add(row, 8)
+local function AddBuffBlock(page)
+    local buff = Catalog.BUFF
+    local block = NewTypeBlock(page, buff)
+    AddKindRows(block)
+    local stock = AddSliderRow(block, "STOCK_ROW", buff.stockKey, BUFF_STOCK_MAX, nil, StockHint(buff))
+    stock.wanted = function() return Catalog.BuffKind() ~= nil end
+    AddSliderRow(block, "FED_WARN", "fedWarnMinutes", FED_WARN_MAX, nil, function() return L.FED_WARN_DESC end)
+    AddKeyRow(block)
+    AddMacroRow(block)
+    AddBlock(page, block, TYPE_GAP)
 end
 
 local function BuildFood()
     local page = NewPage("food")
-    AddTypeSection(page, Catalog.byKey.food)
-    AddTypeSection(page, Catalog.byKey.drink)
-    page.stack:Add(Track(page, W.Toggle(page.content, PAGE_WIDTH, {
-        label = "REST_BUTTON", desc = "REST_BUTTON_DESC",
-        get = function() return ns.db.restButton end,
-        set = function(value) ns.Set("restButton", value) end,
-        locked = function() return not Catalog.HasPool(Catalog.byKey.drink) end,
-        lockedDesc = "NO_MANA_DESC",
-        lockedState = false,
-    })), SECTION_GAP)
-    AddKey(page, "rest")
-    AddToggle(page, "conjuredFirst", "CONJURED_FIRST", "CONJURED_FIRST_DESC")
-    AddParagraph(page, "FLOOR_EXPLAIN", 8)
-    AddBuffSection(page)
-    AddHeading(page, "SECTION_MACROS")
-    AddParagraph(page, "MACRO_EXPLAIN", 0)
-    AddMacroButtons(page)
+    AddTypeBlock(page, Catalog.byKey.food, 0)
+    AddTypeBlock(page, Catalog.byKey.drink, TYPE_GAP)
+    AddRestBlock(page)
+    AddBuffBlock(page)
+    AddToggle(page, "conjuredFirst", "CONJURED_FIRST", "CONJURED_FIRST_DESC", TYPE_GAP)
 
     local function RefreshIfVisible()
         if IsCurrent(page) then RefreshPage(page, true) end
@@ -274,16 +464,13 @@ local function BuildFood()
     ns.Listen("TYPES_CHANGED", RefreshIfVisible)
     ns.Listen("NAMES_CHANGED", RefreshIfVisible)
     ns.Listen("STOCK_CHANGED", RefreshIfVisible)
-    ns.Listen("AURAS_CHANGED", RefreshIfVisible)
 end
 
 local AUTO = "auto"
 local DOCK_SIDE_GAP, DOCK_TEXT_GAP = 10, 8
 local DOCK_PAGES = { "auction", "bank", "vendor" }
 
-local function DockPlacement(slot)
-    return ns.SidePanel.Placement(slot)
-end
+local DockPlacement = ns.SidePanel.Placement
 
 local function DockTargets(slot)
     local items = {
@@ -325,10 +512,6 @@ local function DockStatus(slot)
     return text
 end
 
-local function DockFamily(slot)
-    return string.format(L.DOCK_EXPLAIN, table.concat(ns.Dock:Family(slot), ", "))
-end
-
 local function DockSides()
     local list = {}
     for index, side in ipairs(ns.Dock.SIDES) do
@@ -364,7 +547,6 @@ local function AddDockControls(page, slot)
         paintStatus(self)
     end
     status:Refresh()
-    AddLiveText(page, function() return DockFamily(slot) end, C.muted, PARAGRAPH_GAP)
 end
 
 ns.Dock:OnChange(function()
@@ -389,7 +571,6 @@ local function BuildAuction()
     AddDockControls(page, "auction")
     AddSlider(page, "auctionX", "OFFSET_X", -PANEL_OFFSET, PANEL_OFFSET)
     AddSlider(page, "auctionY", "OFFSET_Y", -PANEL_OFFSET, PANEL_OFFSET)
-    AddParagraph(page, "AUCTION_OFFSET_EXPLAIN", 6)
 end
 
 local function BuildVendor()
@@ -404,7 +585,6 @@ local function BuildVendor()
     AddDockControls(page, "merchant")
     AddSlider(page, "merchantX", "OFFSET_X", -PANEL_OFFSET, PANEL_OFFSET)
     AddSlider(page, "merchantY", "OFFSET_Y", -PANEL_OFFSET, PANEL_OFFSET)
-    AddParagraph(page, "VENDOR_OFFSET_EXPLAIN", 6)
 end
 
 local function BuildBank()
@@ -417,7 +597,6 @@ local function BuildBank()
     AddDockControls(page, "bank")
     AddSlider(page, "bankX", "OFFSET_X", -PANEL_OFFSET, PANEL_OFFSET)
     AddSlider(page, "bankY", "OFFSET_Y", -PANEL_OFFSET, PANEL_OFFSET)
-    AddParagraph(page, "BANK_OFFSET_EXPLAIN", 6)
 end
 
 local VISIBILITY_MODES = {
@@ -478,7 +657,6 @@ local function BuildPanel()
     AddToggle(page, "showHeader", "SHOW_HEADER", "SHOW_HEADER_DESC")
     AddToggle(page, "showCounts", "SHOW_COUNTS", "SHOW_COUNTS_DESC")
     AddToggle(page, "locked", "LOCKED", "LOCKED_DESC")
-    AddParagraph(page, "MOVE_EXPLAIN", 6)
     AddRecenterButton(page)
 
     AddHeading(page, "SECTION_BACKGROUND")
@@ -487,7 +665,7 @@ local function BuildPanel()
 
     AddHeading(page, "SECTION_OTHER")
     page.stack:Add(Track(page, W.Toggle(page.content, PAGE_WIDTH, {
-        label = "MINIMAP_BUTTON", desc = "MINIMAP_BUTTON_DESC",
+        label = "MINIMAP_BUTTON",
         get = function() return not ns.db.minimap.hide end,
         set = ns.MinimapButton.SetShown,
     })))

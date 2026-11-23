@@ -10,9 +10,9 @@ Keeps your food and drinks in one place in WoW Forever: one button that eats the
 
 A small panel with a food button, a drink button for classes with mana and a Well Fed button. Each button shows what it will eat or drink and how much you keep (amber below your stock, red at 0).
 
-A click eats the strongest food in your bags that your level allows. Hover a button for the full list of food in your bags.
+A click eats the strongest food in your bags that your level allows. Hover a button for the food's own tooltip, your stock and the other food in your bags.
 
-- Mage food and water go first, so they are used up before they vanish when you log out for a while. Conjured food below the skip threshold (see below) waits until nothing else is left. You can switch this off.
+- Mage food and water go first, so they are used up before they vanish when you log out for a while. Conjured food below the **Skip weaker than** share (see below) waits until nothing else is left. You can switch this off.
 - At the same strength the button picks plain food over buff food, so a Homemade Cherry Pie goes before Smoked Desert Dumplings.
 - Food that restores a share of your health, like Restorative Bread, counts by what it gives you now: 100% of 4000 health is 4000.
 
@@ -38,9 +38,9 @@ Without a picked buff the button eats any buff food you carry, the one for the h
 ## Keys and macros
 
 - Bind a key to each button on the Food tab or in the game's key bindings.
-- Drag a button from the panel onto an action bar and you get a macro (ReFood Food, ReFood Drink, ReFood Rest, ReFood Buff) that follows every choice the addon makes and shows the food, its count and cooldown like a normal action button. The Food tab has buttons that pick up the same macros.
+- Shift-drag a button from the panel onto an action bar and you get a macro (ReFood Food, ReFood Drink, ReFood Rest, ReFood Buff) that follows every choice the addon makes and shows the food, its count and cooldown like a normal action button. **Pick up** on the Food tab takes the same macro. A plain drag does nothing.
 
-The macros are made per character when you first drag them. If all 30 character macro slots are taken, an account macro is used.
+The macros are made per character when you first take them. If all 30 character macro slots are taken, an account macro is used.
 
 ## Vendor
 
@@ -74,7 +74,7 @@ All three panels sit to the right of their window and follow it, also when a bag
 
 `/food` (or `/refood`) opens the settings:
 
-- **Food:** which buttons to show on this character, their keys, the skip threshold, how much to keep, mage food first, the Well Fed buff and its reminder, the macros
+- **Food:** which buttons to show on this character, their keys, **Skip weaker than**, how much to keep, mage food first, the Well Fed buff and its reminder, the macros
 - **Panel:** when it shows up, food you are out of, icon size, spacing, row or column, the title line, the count, lock, the background of the panel and of the vendor, auction and bank panels, minimap button, language
 - **Vendor:** the vendor list, buying right away, counting the bank, where the panel sits
 - **Auction:** the auction house list, the price jump guard, where the panel sits

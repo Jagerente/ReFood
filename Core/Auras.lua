@@ -105,10 +105,6 @@ function Auras.Fed()
     return bestSpell, bestExpiration
 end
 
-function Auras.IsReliable()
-    return not dirty
-end
-
 local function ScanIfDirty()
     if dirty then Auras.Scan() end
 end

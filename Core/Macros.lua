@@ -8,17 +8,9 @@ local TOOLTIP_LINE = "#showtooltip"
 local NAMES = { food = "ReFood Food", drink = "ReFood Drink", rest = "ReFood Rest", buff = "ReFood Buff" }
 local CHARACTER, ACCOUNT = true, false
 
-function Macros.Name(key)
-    return NAMES[key]
-end
-
 local function Index(key)
     local index = GetMacroIndexByName(NAMES[key])
     if index and index > 0 then return index end
-end
-
-function Macros.Exists(key)
-    return Index(key) ~= nil
 end
 
 local function Body(record)

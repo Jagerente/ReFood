@@ -6,10 +6,7 @@ local Market = ns.Market
 local Catalog = ns.Catalog
 local SidePanel = ns.SidePanel
 
-local AuctionPanel = {}
-ns.AuctionPanel = AuctionPanel
-
-local Money, ShortMoney = SidePanel.Money, SidePanel.ShortMoney
+local Money, ShortMoney, AddLine = SidePanel.Money, SidePanel.ShortMoney, SidePanel.AddLine
 local HOSTS = { "AuctionHouseFrame" }
 
 local panel
@@ -60,10 +57,6 @@ local function OnSale(offer)
     return offer ~= nil and offer.status == Market.READY
 end
 
-local function AddLine(text, color)
-    GameTooltip:AddLine(text, color[1], color[2], color[3], true)
-end
-
 local function ShowChoiceTooltip(choice)
     local offer = choice.offer
     GameTooltip:SetOwner(choice, "ANCHOR_RIGHT")
@@ -82,7 +75,6 @@ local function ShowChoiceTooltip(choice)
             AddLine(L.AH_TIP_ENOUGH, C.muted)
         end
         if offer.beyond then AddLine(string.format(L.AH_TIP_BEYOND, Money(offer.beyond)), C.warn) end
-        if offer.entry.offer ~= offer then AddLine(L.AH_TIP_PICK, C.accent) end
     end
     GameTooltip:Show()
 end
@@ -151,10 +143,6 @@ local function Create()
         offset = { x = "auctionX", y = "auctionY" },
         settingsPage = "auction",
     })
-end
-
-function AuctionPanel.IsShown()
-    return panel ~= nil and panel:IsShown()
 end
 
 ns.Listen("MARKET_SHOWN", function(open)
