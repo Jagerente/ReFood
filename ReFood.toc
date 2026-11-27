@@ -2,7 +2,7 @@
 ## Title: ReFood
 ## Notes: Eats and drinks the right food from a button, a key or a macro, reminds you of Well Fed and restocks food and water at the vendor, the auction house and the bank.
 ## Notes-ruRU: Ест и пьёт нужное с кнопки, клавиши или макроса, напоминает о сытости и пополняет запас еды и воды у торговца, на аукционе и из банка.
-## Version: 1.2.0
+## Version: 1.3.0
 ## IconTexture: Interface\AddOns\ReFood\Media\Icon
 ## SavedVariables: ReFoodDB
 ## SavedVariablesPerCharacter: ReFoodCharDB
